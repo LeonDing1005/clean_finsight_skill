@@ -1,0 +1,1 @@
+# FinSight Skill — scripts package

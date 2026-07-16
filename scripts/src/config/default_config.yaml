@@ -1,0 +1,36 @@
+target_name: "商汤科技"
+stock_code: "00020"
+target_type: 'company'  # company, macro, industry
+market: 'HK'  # A (Chinese A-share), HK (Hong Kong), US (United States)
+output_dir: "./outputs/exp-v1"
+language: 'zh' # zh,en
+
+# Per-service rate limits (seconds between consecutive calls)
+rate_limits:
+  search_engines: 1.0
+  financial_apis: 0.5
+  fred_api: 0.5
+  yfinance: 0.2
+
+use_collect_data_cache: True
+use_analysis_cache: True
+use_report_outline_cache: True
+use_full_report_cache: True
+use_post_process_cache: True
+enable_generated_code: False  # Requires --allow-generated-code; do not enable for untrusted inputs.
+allow_unsafe_resume: False  # Requires --resume; only trust checkpoints created on this machine.
+
+llm_config_list:
+  - model_name: "${DS_MODEL_NAME}"
+    api_key: "${DS_API_KEY}"
+    base_url: "${DS_BASE_URL}"
+    generation_params:
+      temperature: 0.5
+      max_tokens: 1000
+      top_p: 1
+  - model_name: "${EMBEDDING_MODEL_NAME}"
+    api_key: "${EMBEDDING_API_KEY}"
+    base_url: "${EMBEDDING_BASE_URL}"
+  - model_name: "${VLM_MODEL_NAME}"
+    api_key: "${VLM_API_KEY}"
+    base_url: "${VLM_BASE_URL}"

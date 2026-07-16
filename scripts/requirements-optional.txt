@@ -1,0 +1,13 @@
+# Optional: Chinese A-share + HK market data
+akshare>=1.12
+jieba>=0.42
+efinance>=0.5
+sogou-search>=0.1
+
+# Optional: Advanced web crawling (requires Playwright browser)
+crawl4ai>=0.3
+playwright>=1.40
+fake-useragent>=1.4
+
+# Optional: PDF export from DOCX (requires Microsoft Word on Windows)
+docx2pdf>=0.1

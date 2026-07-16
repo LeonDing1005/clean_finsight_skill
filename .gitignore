@@ -1,0 +1,14 @@
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local credentials and generated runtime data
+.env
+*.dill
+*.pkl
+*.tmp
+output/
+outputs/
+logs/
