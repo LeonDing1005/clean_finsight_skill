@@ -12,8 +12,9 @@ from IPython.core.interactiveshell import InteractiveShell
 from IPython.utils.capture import capture_output
 import matplotlib.pyplot as plt
 import matplotlib
-from matplotlib import font_manager
 import pandas as pd
+
+from src.typography import configure_matplotlib_fonts, matplotlib_setup_code
 
 
 class CodeExecutor:
@@ -41,68 +42,24 @@ class CodeExecutor:
         self.image_counter = 0
         
     def _setup_chinese_font(self):
-        """Configure matplotlib font settings."""
+        """Configure the shared Latin-first Matplotlib font chain."""
         try:
             matplotlib.use('Agg')
-            import matplotlib.pyplot as plt
-            from matplotlib import font_manager
-            
-            font_path = "./font/kt_font.ttf"
-            
-            if not os.path.exists(font_path):
-                raise FileNotFoundError(f"Font file not found: {font_path}")
-            
-            font_manager.fontManager.addfont(font_path)
-            
-            font_prop = font_manager.FontProperties(fname=font_path)
-            font_name = font_prop.get_name()
-            
-            plt.rcParams['font.sans-serif'] = [font_name] + plt.rcParams['font.sans-serif']
-            plt.rcParams['axes.unicode_minus'] = False
-            
-            # print(f"Successfully set custom font: {font_name}")
-            
-            # Mirror the configuration within the shell
-            self.shell.run_cell(f"""
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib import font_manager
-import os
-font_path = "./font/kt_font.ttf"
-plt.rcParams['font.family'] = font_manager.FontProperties(fname=font_path).get_name()
-plt.rcParams['axes.unicode_minus'] = False
-""")
-            
+            configure_matplotlib_fonts(matplotlib)
+            self.shell.run_cell(matplotlib_setup_code())
         except Exception as e:
             print(f"Failed to configure custom font: {e}")
-            # Fallback to system defaults
-            try:
-                self.shell.run_cell("""
-import matplotlib.pyplot as plt
-plt.rcParams['font.family'] = ['KaiTi']
-plt.rcParams['axes.unicode_minus'] = False
-""")
-            except:
-                pass
             
     def _setup_common_imports(self):
         """Preload commonly used libraries inside the IPython shell."""
-        common_imports = """
+        common_imports = f"""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from matplotlib import font_manager
-font_path = "./font/kt_font.ttf" 
-plt.rcParams['font.family'] = font_manager.FontProperties(fname=font_path).get_name()
-plt.rcParams['axes.unicode_minus'] = False
-import seaborn as sns
+{matplotlib_setup_code()}
 # Chart styling
-sns.set_style("whitegrid", {
-    'font.family': 'KaiTi',
-    'axes.unicode_minus': False
-})
+sns.set_style("whitegrid")
 import os
 import json
 from IPython.display import display

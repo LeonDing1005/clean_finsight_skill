@@ -7,14 +7,14 @@ import matplotlib
 matplotlib.use('Agg')
 import os
 
-def draw_kline_chart(kline_data: pd.DataFrame, working_dir: str):
-    font_path = os.path.join(os.path.dirname(__file__), "fonts", "kt_font.ttf")
-    font = font_manager.FontProperties(fname=font_path, size=16)
-    plt.rcParams['axes.unicode_minus'] = False
+from src.typography import LATIN_FONT, configure_matplotlib_fonts, enforce_figure_text_fonts
 
+def draw_kline_chart(kline_data: pd.DataFrame, working_dir: str):
     sns.set_style("whitegrid", {
         'axes.unicode_minus': False
     })
+    configure_matplotlib_fonts(matplotlib)
+    font = font_manager.FontProperties(family=LATIN_FONT, size=16)
 
     # Custom palette
     custom_palette = [
@@ -115,5 +115,6 @@ def draw_kline_chart(kline_data: pd.DataFrame, working_dir: str):
 
     # Layout adjustments
     plt.tight_layout()
+    enforce_figure_text_fonts(plt.gcf())
     plt.savefig(os.path.join(working_dir, 'kline_chart.png'))
     return os.path.join(working_dir, 'kline_chart.png')

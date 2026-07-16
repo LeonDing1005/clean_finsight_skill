@@ -20,6 +20,7 @@ from src.agents.report_generator.report_class import Report, Section
 from src.utils.helper import extract_markdown, get_md_img
 from src.utils.index_builder import IndexBuilder
 from src.utils.figure_helper import draw_kline_chart
+from src.typography import LATIN_FONT, normalize_docx_typography
 
 def _inject_word_toc(docx_path: str):
     """Inject a real Word TOC field (with updatable page numbers).
@@ -91,62 +92,6 @@ def _inject_word_toc(docx_path: str):
             para.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     doc.save(docx_path)
-
-
-def _fix_font_hints(docx_path: str):
-    """Strip w:hint attributes and ensure Times New Roman for Latin text.
-
-    Pandoc adds w:hint="eastAsia" to text runs containing CJK characters.
-    This hint causes Word to use its internal font-fallback logic for Latin
-    characters (digits, English) embedded in those runs, bypassing the
-    style's ascii font setting.
-
-    Additionally, pandoc often emits empty <w:rFonts/> or rFonts with only
-    w:hint — after stripping the hint these become empty and fall back to
-    docDefaults (theme fonts → Arial), NOT the Normal style's TNR.
-
-    Fix:
-      1. Strip all w:hint attributes from document.xml
-      2. Inject w:ascii="Times New Roman" w:hAnsi="Times New Roman" into
-         every rFonts element that lacks explicit ascii/hAnsi settings
-    """
-    import zipfile
-    import shutil
-
-    tmp_path = docx_path + ".tmp"
-    try:
-        with zipfile.ZipFile(docx_path, 'r') as zin:
-            with zipfile.ZipFile(tmp_path, 'w', zipfile.ZIP_DEFLATED) as zout:
-                for item in zin.infolist():
-                    data = zin.read(item.filename)
-                    if item.filename == 'word/document.xml':
-                        content = data.decode('utf-8')
-                        # Step 1: Strip all w:hint attributes from runs
-                        content = re.sub(r'\s+w:hint="[^"]*"', '', content)
-                        # Step 2: Inject TNR into rFonts elements missing w:ascii
-                        def _inject_tnr(match):
-                            attrs = match.group(1)
-                            if 'w:ascii=' in attrs:
-                                return match.group(0)  # already has explicit ascii
-                            return f'<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"{attrs}/>'
-                        content = re.sub(r'<w:rFonts([^>]*)/>', _inject_tnr, content)
-                        data = content.encode('utf-8')
-                    elif item.filename == 'word/styles.xml':
-                        content = data.decode('utf-8')
-                        # Fix Normal style: pandoc may set eastAsia lang to en-US
-                        # which confuses CJK font fallback
-                        content = re.sub(
-                            r'(<w:style[^>]*w:styleId="a0"[^>]*>.*?<w:lang[^>]*w:eastAsia=")en-US(")',
-                            r'\1zh-CN\2',
-                            content,
-                            flags=re.DOTALL,
-                        )
-                        data = content.encode('utf-8')
-                    zout.writestr(item, data)
-        shutil.move(tmp_path, docx_path)
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
 
 
 class ReportGenerator(BaseAgent):
@@ -961,12 +906,17 @@ class ReportGenerator(BaseAgent):
                 except Exception as e:
                     self.logger.warning(f"TOC injection failed (non-fatal): {e}")
 
-                # Fix font hints: strip w:hint so Latin chars/digits use Times New Roman
+                # Normalize every Word text part and fallback to the central Latin font.
                 try:
-                    _fix_font_hints(docx_path)
-                    self.logger.info(f"Font hints fixed: {docx_path}")
+                    font_stats = normalize_docx_typography(docx_path)
+                    self.logger.info(
+                        f"DOCX typography normalized to {LATIN_FONT}: "
+                        f"{font_stats} ({docx_path})"
+                    )
                 except Exception as e:
-                    self.logger.warning(f"Font hint fix failed (non-fatal): {e}")
+                    if os.path.exists(docx_path):
+                        os.remove(docx_path)
+                    raise RuntimeError("DOCX typography normalization failed") from e
             except Exception as e:
                 self.logger.error(f"Failed to convert md to docx: {e}", exc_info=True)
             
@@ -1003,6 +953,9 @@ class ReportGenerator(BaseAgent):
                         "--toc-depth=3",
                         f"--resource-path={working_dir}",
                         "--pdf-engine=xelatex",
+                        f"--variable=mainfont:{LATIN_FONT}",
+                        f"--variable=sansfont:{LATIN_FONT}",
+                        f"--variable=monofont:{LATIN_FONT}",
                     ]
                     pypandoc.convert_file(
                         md_path, 'pdf',
