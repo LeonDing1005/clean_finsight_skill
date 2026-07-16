@@ -5,6 +5,7 @@ This module contains web crawling and content extraction functionality.
 """
 
 from typing import List, Dict
+from urllib.parse import urlparse
 import re
 import json
 import asyncio
@@ -14,17 +15,15 @@ from io import BytesIO
 import pdfplumber
 import chardet
 
-try:
-    from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
-    _HAS_CRAWL4AI = True
-except ImportError:
-    _HAS_CRAWL4AI = False
-from openai import OpenAI
 from bs4 import BeautifulSoup
 
 from ..base import Tool, ToolResult
+from src.utils.url_validation import validate_public_http_url
 
 
+
+
+MAX_FETCH_BYTES = 5 * 1024 * 1024
 
 
 class Click(Tool):
@@ -44,18 +43,28 @@ class Click(Tool):
         self.type = 'tool_click'
     
     async def fetch_url(self, url: str) -> str:
+        validation_error = validate_public_http_url(url)
+        if validation_error:
+            return f"Error fetching url: {validation_error}"
+
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=10) as response:
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers, allow_redirects=False) as response:
                     if response.status != 200:
                         return f"Error fetching url: HTTP status code {response.status}"
-                    
+
+                    content_length = response.headers.get("Content-Length")
+                    if content_length and int(content_length) > MAX_FETCH_BYTES:
+                        return "Error fetching url: Response exceeds size limit"
                     # Decode with detected encoding to avoid UTF-8 decode errors
-                    raw_bytes = await response.read()
+                    raw_bytes = await response.content.read(MAX_FETCH_BYTES + 1)
+                    if len(raw_bytes) > MAX_FETCH_BYTES:
+                        return "Error fetching url: Response exceeds size limit"
                     if not raw_bytes:
                         return "Error fetching url: Empty response"
                     detected_encoding = response.charset or chardet.detect(raw_bytes).get('encoding') or 'utf-8'
@@ -91,21 +100,15 @@ class Click(Tool):
         if isinstance(urls, str):
             urls = [urls]
         try:
-            browser_conf = BrowserConfig(headless=True)  # or False to see the browser
-            run_conf = CrawlerRunConfig(
-                cache_mode=CacheMode.BYPASS
-            )
             result_list = []
             for url in urls:
-                if url.endswith(".pdf"):
+                validation_error = validate_public_http_url(url)
+                if validation_error:
+                    content = f"Error fetching url: {validation_error}"
+                elif urlparse(url).path.lower().endswith(".pdf"):
                     content = await self.extract_pdf_text_async(url)
                 else:
-                    async with AsyncWebCrawler(config=browser_conf) as crawler:
-                        result = await crawler.arun(url=url, config=run_conf)
-                        content = str(result.markdown)
-                    
-                    # use naive requests with async to get the content
-                    # content = await self.fetch_url(url)
+                    content = await self.fetch_url(url)
 
                 # if task == '' or len(content) < 10000:
                 result_list.append(
@@ -180,22 +183,32 @@ class Click(Tool):
         Returns:
             str: Extracted text or an error message.
         """
+        validation_error = validate_public_http_url(url)
+        if validation_error:
+            return f"Error: {validation_error}"
+
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(url, timeout=30)
-                if response.status_code != 200:
-                    return f"Error: Unable to retrieve the PDF (status code {response.status_code})"
-                
-                content = response.content
-                
-                with pdfplumber.open(BytesIO(content)) as pdf:
-                    full_text = ""
-                    for page in pdf.pages:
-                        text = page.extract_text()
-                        if text:
-                            full_text += text
-                
-                return full_text
+            async with httpx.AsyncClient(follow_redirects=False, timeout=30) as client:
+                async with client.stream("GET", url) as response:
+                    if response.status_code != 200:
+                        return f"Error: Unable to retrieve the PDF (status code {response.status_code})"
+
+                    content_length = response.headers.get("Content-Length")
+                    if content_length and int(content_length) > MAX_FETCH_BYTES:
+                        return "Error: PDF exceeds size limit"
+
+                    chunks = []
+                    total_size = 0
+                    async for chunk in response.aiter_bytes():
+                        total_size += len(chunk)
+                        if total_size > MAX_FETCH_BYTES:
+                            return "Error: PDF exceeds size limit"
+                        chunks.append(chunk)
+
+                with pdfplumber.open(BytesIO(b"".join(chunks))) as pdf:
+                    return "".join(
+                        text for page in pdf.pages if (text := page.extract_text())
+                    )
                 
         except Exception as e:
             return f"Error: {str(e)}"

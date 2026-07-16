@@ -139,26 +139,7 @@ from IPython.display import display
         Returns:
             (is_safe, error_message)
         """
-        try:
-            tree = ast.parse(code)
-        except SyntaxError as e:
-            return False, f"Syntax error: {e}"
-        
-        # for node in ast.walk(tree):
-        #     if isinstance(node, ast.Import):
-        #         for alias in node.names:
-        #             if alias.name not in self.ALLOWED_IMPORTS:
-            
-        #     elif isinstance(node, ast.ImportFrom):
-        #         if node.module not in self.ALLOWED_IMPORTS:
-        #             return False, f"Disallowed import: {node.module}"
-        #       # Check for dangerous calls
-        #     elif isinstance(node, ast.Call):
-        #         if isinstance(node.func, ast.Name):
-        #             if node.func.id in ['exec', 'eval', '__import__']:
-        #                 return False, f"Disallowed function call: {node.func.id}"
-        
-        return True, ""
+        return False, "Legacy CodeExecutor is disabled. Use an OS-isolated executor for trusted code."
     
     def get_current_figures_info(self) -> List[Dict[str, Any]]:
         """Return metadata about the current matplotlib figures without saving them."""

@@ -68,6 +68,16 @@ DEPTH_PRESETS = {
 }
 
 
+def infer_market(stock_code: str | None) -> str:
+    """Infer the most likely market when the user did not provide one."""
+    code = str(stock_code or "").strip().upper()
+    if code.isdigit() and len(code) == 6:
+        return "A"
+    if code.isdigit() and 1 <= len(code) <= 5:
+        return "HK"
+    return "US"
+
+
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
     p = argparse.ArgumentParser(
@@ -90,6 +100,8 @@ Examples:
     # Target overrides
     p.add_argument("--target-name", default=None, help="Research target name")
     p.add_argument("--stock-code", default=None, help="Ticker symbol")
+    p.add_argument("--market", default=None, choices=["A", "HK", "US"],
+                   help="Market: A (China A-share), HK, or US. Inferred from stock code when omitted.")
     p.add_argument("--target-type", default=None,
                    choices=["company", "industry", "macro", "general"],
                    help="Research type")
@@ -213,6 +225,8 @@ def build_config(args: argparse.Namespace) -> dict:
         config["target_name"] = args.target_name
     if args.stock_code is not None:
         config["stock_code"] = args.stock_code
+    if args.market is not None:
+        config["market"] = args.market
     if args.target_type is not None:
         config["target_type"] = args.target_type
     if args.language is not None:
@@ -221,9 +235,11 @@ def build_config(args: argparse.Namespace) -> dict:
         config["output_dir"] = args.output_dir
     if args.no_charts:
         config["enable_chart"] = False
-    if args.allow_generated_code:
-        config["enable_generated_code"] = True
+    # A config file must not be able to enable in-process code execution.
+    config["enable_generated_code"] = bool(args.allow_generated_code)
     config["allow_unsafe_resume"] = args.resume and not args.no_resume
+    if not config.get("market"):
+        config["market"] = infer_market(config.get("stock_code"))
 
     # Build llm_config_list from env vars (with optional overrides)
     llm_config_list = []
@@ -279,8 +295,8 @@ async def run_pipeline(config_dict: dict, args: argparse.Namespace) -> None:
     depth_cfg = DEPTH_PRESETS[depth]
 
     use_llm_name = config_dict["llm_config_list"][0]["model_name"]
-    use_vlm_name = os.getenv("VLM_MODEL_NAME")
-    use_embedding_name = os.getenv("EMBEDDING_MODEL_NAME")
+    use_vlm_name = args.vlm_model or os.getenv("VLM_MODEL_NAME")
+    use_embedding_name = args.embedding_model or os.getenv("EMBEDDING_MODEL_NAME")
     enable_generated_code = config_dict.get("enable_generated_code", False)
     enable_chart = config_dict.get("enable_chart", True) and enable_generated_code
 
@@ -310,8 +326,6 @@ async def run_pipeline(config_dict: dict, args: argparse.Namespace) -> None:
 
     collect_tasks = config_dict.get("custom_collect_tasks", [])
     analysis_tasks = config_dict.get("custom_analysis_tasks", [])
-    if config_dict.get("enable_chart", True) and not enable_generated_code:
-        logger.info("Chart generation disabled because generated code is not explicitly enabled")
 
     # Initialize memory
     memory = Memory(config=config)
@@ -319,6 +333,8 @@ async def run_pipeline(config_dict: dict, args: argparse.Namespace) -> None:
     # Initialize logger
     log_dir = os.path.join(config.working_dir, "logs")
     logger = setup_logger(log_dir=log_dir, log_level=logging.INFO)
+    if config_dict.get("enable_chart", True) and not enable_generated_code:
+        logger.info("Chart generation disabled because generated code is not explicitly enabled")
 
     if resume:
         memory.load()

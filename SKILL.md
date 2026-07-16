@@ -248,7 +248,7 @@ pip install -r scripts/requirements-core.txt
 # Optional: Chinese A-share + HK market data
 pip install -r scripts/requirements-optional.txt
 
-# Optional: Playwright browser for advanced web crawling
+# Optional: Playwright browser automation
 playwright install chromium
 ```
 
@@ -540,7 +540,7 @@ On detecting an error:
 1. **Read the error context** — what file, what line, what was the agent trying to do
 2. **Classify the error**:
    - **API/Network** → let the pipeline auto-retry; no fix needed unless 5 retries all fail
-   - **Missing dependency** → `pip install` the missing package, then pipeline auto-resumes on next run
+   - **Missing dependency** → install the missing package, then rerun the pipeline (use `--resume` only for trusted local checkpoints)
    - **Code generation error (repeated)** → the LLM's prompt may need improvement; read the agent's system prompt file and fix the instruction
    - **Framework bug** (e.g. `'list' object has no attribute 'columns'`) → read the relevant source file and fix the bug
 3. **Apply the fix** — edit the source file directly
@@ -587,6 +587,7 @@ python scripts/run.py --config my_config.yaml
 python scripts/run.py \
   --target-name "Apple Inc." \
   --stock-code AAPL \
+  --market US \
   --target-type company \
   --language en
 
@@ -594,6 +595,7 @@ python scripts/run.py \
 python scripts/run.py \
   --target-name "贵州茅台" \
   --stock-code 600519 \
+  --market A \
   --target-type company \
   --language zh
 
@@ -659,6 +661,7 @@ llm_config_list:
 | `--env-file PATH` | .env file path | CWD/.env → ~/.env |
 | `--target-name NAME` | Research target | From config or `"Unknown"` |
 | `--stock-code CODE` | Ticker symbol | From config |
+| `--market A\|HK\|US` | Research market; inferred from ticker when omitted | Inferred |
 | `--target-type TYPE` | company/industry/macro/general | `general` |
 | `--language en\|zh` | Output language | `en` |
 | `--output-dir DIR` | Output directory | `./outputs` |
@@ -667,7 +670,7 @@ llm_config_list:
 | `--embedding-model MODEL` | Override embedding model | From env |
 | `--max-concurrent N` | Max concurrent agents | `3` |
 | `--depth low\|medium\|high` | Research depth: low=fast, medium=balanced, high=thorough | `medium` |
-| `--no-charts` | Disable chart generation | Charts enabled |
+| `--no-charts` | Disable chart generation | Enabled only with `--allow-generated-code` |
 | `--allow-generated-code` | Enable LLM-generated Python for trusted inputs only | Disabled |
 | `--resume` | Resume from trusted local checkpoints only | Disabled |
 

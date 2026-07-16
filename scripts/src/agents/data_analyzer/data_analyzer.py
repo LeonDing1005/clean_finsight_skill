@@ -55,7 +55,7 @@ class DataAnalyzer(BaseAgent):
         self.VLM_CRITIQUE_PROMPT = self.prompt_loader.get_prompt('vlm_critique')
 
         self.use_vlm_name = use_vlm_name
-        self.vlm = self.config.llm_dict[use_vlm_name]
+        self.vlm = self.config.llm_dict.get(use_vlm_name) if use_vlm_name else None
         self.use_embedding_name = use_embedding_name
         self.current_phase = 'phase1'
  
@@ -315,6 +315,8 @@ class DataAnalyzer(BaseAgent):
     
     
     async def _generate_description(self, chart_name: str) -> str:
+        if self.vlm is None:
+            return ""
         chart_name_path = os.path.join(self.image_save_dir, chart_name)
         image_b64 = image_to_base64(chart_name_path)
         if not image_b64:
@@ -376,6 +378,9 @@ class DataAnalyzer(BaseAgent):
             last_successful_chart_path = chart_filepath
 
             # --- Phase 2: VLM evaluation ---
+            if self.vlm is None:
+                self.logger.info("VLM is not configured; skipping chart critique")
+                return last_successful_code, os.path.basename(last_successful_chart_path)
             image_b64 = image_to_base64(chart_filepath)
             if not image_b64:
                 return last_successful_code, os.path.basename(last_successful_chart_path)

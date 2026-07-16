@@ -17,13 +17,23 @@ def _redact_sensitive_values(value):
     """Return a serializable config copy without credentials."""
     if isinstance(value, dict):
         return {
-            key: ("***REDACTED***" if key.lower() in _SENSITIVE_CONFIG_KEYS
+            key: ("***REDACTED***" if _is_sensitive_key(key)
                   else _redact_sensitive_values(item))
             for key, item in value.items()
         }
     if isinstance(value, list):
         return [_redact_sensitive_values(item) for item in value]
     return value
+
+
+def _is_sensitive_key(key):
+    normalized = str(key).lower().replace("-", "_")
+    return (
+        normalized in _SENSITIVE_CONFIG_KEYS
+        or normalized.endswith(("_api_key", "_token", "_secret", "_password", "_credential"))
+        or normalized.startswith(("api_key_", "token_", "secret_", "password_", "credential_"))
+        or normalized in {"access_token", "client_secret", "private_key"}
+    )
 
 
 def _safe_path_component(value, fallback="unknown"):
@@ -139,6 +149,8 @@ class Config:
             return
         market = str(self.config.get('market', 'US')).upper()
         self.config['market'] = market
+        if market not in {'A', 'HK', 'US'}:
+            raise ValueError("market must be one of: A, HK, US")
         if market == 'A' and not re.fullmatch(r'\d{6}', stock_code):
             raise ValueError("A-share stock_code must be a six-digit code")
         if market == 'HK' and not re.fullmatch(r'\d{1,5}', stock_code):
