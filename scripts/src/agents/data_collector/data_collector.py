@@ -61,6 +61,8 @@ class DataCollector(BaseAgent):
         
 
     async def _prepare_executor(self):
+        if not self.enable_code:
+            return
         # Expose helper functions to the code executor for LLM-generated code
         self.code_executor.set_variable("call_tool", self._agent_tool_function)
         self.code_executor.set_variable("save_result", self._save_result)

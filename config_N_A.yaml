@@ -1,0 +1,35 @@
+target_name: "美联储加息周期"
+stock_code: "N/A"
+target_type: macro
+market: US
+language: zh
+depth: low
+output_dir: "./outputs"
+enable_chart: true
+use_collect_data_cache: true
+use_analysis_cache: true
+use_report_outline_cache: true
+use_full_report_cache: true
+rate_limits:
+  search_engines: 1.0
+  financial_apis: 0.5
+  yfinance: 0.2
+custom_collect_tasks:
+  - "采集美联储联邦基金利率历史数据（1980年至今），包括每次FOMC会议的利率决策"
+  - "采集美国CPI和核心PCE通胀数据历史走势"
+  - "采集美国GDP增长率、失业率、非农就业等核心宏观指标"
+  - "采集美联储FOMC会议声明、会议纪要和新闻发布会关键表态"
+  - "采集美国国债收益率曲线数据（2年期/10年期及利差变化）"
+custom_analysis_tasks:
+  - "划分本轮加息周期的阶段（启动期、加速期、暂停期），对比历史加息周期特征"
+  - "分析加息对美股（标普500、纳斯达克）的传导机制和历史表现"
+  - "分析加息对美债收益率和美元指数的历史影响模式"
+  - "分析加息对新兴市场的溢出效应（资本流动、汇率压力）"
+  - "基于当前宏观数据推演加息终局和潜在降息时点"
+llm_config_list:
+  - model_name: "${DS_MODEL_NAME}"
+    api_key: "${DS_API_KEY}"
+    base_url: "${DS_BASE_URL}"
+    generation_params:
+      temperature: 0.7
+      max_tokens: 32768

@@ -230,6 +230,8 @@ class ReportGenerator(BaseAgent):
         """
         Prepare the code executor with data access functions for section writing.
         """
+        if not self.enable_code:
+            return
         current_task_data = self.current_task_data
         tool_list = self.tools
         collect_data_list = self.memory.get_collect_data(exclude_type=['search', 'click'])

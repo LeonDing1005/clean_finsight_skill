@@ -47,7 +47,7 @@ DEPTH_PRESETS = {
         "analysis_iterations": 2,
         "report_iterations": 2,
         "estimated_llm_calls": "~30-50",
-        "estimated_time": "1-3 分钟",
+        "estimated_time": "1-2 小时",
     },
     "medium": {
         "label": "标准 (Medium)",
@@ -55,7 +55,7 @@ DEPTH_PRESETS = {
         "analysis_iterations": 3,
         "report_iterations": 3,
         "estimated_llm_calls": "~50-80",
-        "estimated_time": "3-8 分钟",
+        "estimated_time": "3-4 小时",
     },
     "high": {
         "label": "深度 (High)",
@@ -63,7 +63,7 @@ DEPTH_PRESETS = {
         "analysis_iterations": 5,
         "report_iterations": 5,
         "estimated_llm_calls": "~80-120+",
-        "estimated_time": "5-15 分钟",
+        "estimated_time": "5-6 小时",
     },
 }
 

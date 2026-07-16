@@ -1,17 +1,25 @@
 ---
-name: finsight-research
+name: finsight_research_test
 description: >-
-  Multi-agent financial deep research system for generating publication-ready
-  DOCX/PDF reports with automated data collection, chart generation
-  (VLM-reviewed), and structured analysis. Supports US (yfinance/FRED), China
-  A-share (akshare), Hong Kong, and general web-based research. Use when user
-  needs: (1) in-depth financial research report on a company, industry, or macro
-  topic, (2) automated data gathering + analysis + report pipeline, (3) "deep
-  research" on stocks or financial subjects, (4) 行业研究报告, 个股深度分析, 深度研报,
-  financial due diligence.
+  [TEST VERSION] Multi-agent financial deep research system for generating
+  publication-ready DOCX/PDF reports with automated data collection, chart
+  generation (VLM-reviewed), and structured analysis. Supports US
+  (yfinance/FRED), China A-share (akshare), Hong Kong, and general web-based
+  research. This is a Claude Code-adapted test fork of finsight-research. Use
+  when user needs: (1) in-depth financial research report on a company,
+  industry, or macro topic, (2) automated data gathering + analysis + report
+  pipeline, (3) "deep research" on stocks or financial subjects, (4)
+  行业研究报告, 个股深度分析, 深度研报, financial due diligence.
 ---
 
-# FinSight Research Skill
+# FinSight Research Skill [TEST — finsight_research_test]
+
+> ** 这是 finsight-research 的 Claude Code 适配测试分支。** 与原始版本的区别：
+> - 所有命令块已从 `bash` 转换为 `powershell`（Windows 兼容）
+> - `.env` 凭据已清除，使用 `.env.example` 模板
+> - 技能名注册为 `finsight_research_test`，不与 `finsight-research` 冲突
+> - 行延续符从 `\` 改为 `` ` ``（PowerShell 语法）
+> - 深度耗时估算已与 SKILL.md 对齐
 
 Multi-agent financial deep research pipeline. From a ticker symbol to a publication-ready report in one command.
 
@@ -70,13 +78,13 @@ Read the user's message carefully. A target is **PRESENT** only if the message e
 >
 > ### 使用方式
 > ```
-> /finsight-research <标的> [--depth low|medium|high] [--target-type company|industry|macro|general]
+> /finsight_research_test <标的> [--depth low|medium|high] [--target-type company|industry|macro|general]
 > ```
 > **示例**：
-> - `/finsight-research AAPL --target-type company` — 公司深度研究（支持美股/A股/港股）
-> - `/finsight-research "新能源汽车" --target-type industry` — 行业产业链研究
-> - `/finsight-research "美联储加息周期" --target-type macro` — 宏观政策研究
-> - `/finsight-research "比特币与黄金的避险属性对比" --target-type general` — 通用主题研究
+> - `/finsight_research_test AAPL --target-type company` — 公司深度研究（支持美股/A股/港股）
+> - `/finsight_research_test "新能源汽车" --target-type industry` — 行业产业链研究
+> - `/finsight_research_test "美联储加息周期" --target-type macro` — 宏观政策研究
+> - `/finsight_research_test "比特币与黄金的避险属性对比" --target-type general` — 通用主题研究
 >
 > **请告诉我你想研究什么？**
 
@@ -241,7 +249,7 @@ Display the generated tasks to the user in a clean format:
 
 ### Install Dependencies
 
-```bash
+```powershell
 # Core (always needed — US market, analysis, charts)
 pip install -r scripts/requirements-core.txt
 
@@ -378,7 +386,7 @@ After this section, proceed to **Environment Setup (Auto)**.
 
 ### Step 1: Check Python Version
 
-```bash
+```powershell
 python --version 2>&1
 ```
 
@@ -389,20 +397,20 @@ python --version 2>&1
 
 First, check if pandoc is installed:
 
-```bash
+```powershell
 pandoc --version 2>&1
 ```
 
 -  **Installed** → proceed to Step 3
 -  **Not installed** → attempt auto-install via winget:
 
-```bash
+```powershell
 winget install --id JohnMacFarlane.Pandoc --silent --accept-package-agreements --accept-source-agreements 2>&1
 ```
 
 After winget completes, verify installation:
 
-```bash
+```powershell
 pandoc --version 2>&1
 ```
 
@@ -413,14 +421,14 @@ pandoc --version 2>&1
 
 > `{SKILL_DIR}` below refers to the directory containing this SKILL.md file.
 
-```bash
+```powershell
 pip install -r {SKILL_DIR}/scripts/requirements-core.txt 2>&1
 ```
 
 - This will install all 19 core packages. If some are already installed, pip skips them.
 - After installation, verify the critical import works:
 
-```bash
+```powershell
 python -c "import yfinance, pandas, matplotlib; print('Core OK')" 2>&1
 ```
 
@@ -432,13 +440,13 @@ Check if the user needs China A-share / HK market data:
 
 - If the user's research target involves **A股/港股**，install optional deps:
 
-```bash
+```powershell
 pip install -r {SKILL_DIR}/scripts/requirements-optional.txt 2>&1
 ```
 
 - Then verify:
 
-```bash
+```powershell
 python -c "import akshare; print('A-Share OK')" 2>&1
 ```
 
@@ -467,7 +475,7 @@ Then proceed to the research pipeline.
 
 ### Step 1: Launch in Background
 
-```bash
+```powershell
 python {SKILL_DIR}/scripts/run.py --config {SKILL_DIR}/config_{STOCK_CODE}.yaml 2>&1
 ```
 
@@ -576,33 +584,33 @@ Every fix MUST be recorded in `{SKILL_DIR}/fix-log.md` using this template:
 
 ### With a YAML config file (recommended)
 
-```bash
+```powershell
 python scripts/run.py --config my_config.yaml
 ```
 
 ### With CLI arguments only (no config file needed)
 
-```bash
+```powershell
 # US stock
-python scripts/run.py \
-  --target-name "Apple Inc." \
-  --stock-code AAPL \
-  --market US \
-  --target-type company \
+python scripts/run.py `
+  --target-name "Apple Inc." `
+  --stock-code AAPL `
+  --market US `
+  --target-type company `
   --language en
 
 # Chinese A-share
-python scripts/run.py \
-  --target-name "贵州茅台" \
-  --stock-code 600519 \
-  --market A \
-  --target-type company \
+python scripts/run.py `
+  --target-name "贵州茅台" `
+  --stock-code 600519 `
+  --market A `
+  --target-type company `
   --language zh
 
 # Industry research (no stock code needed)
-python scripts/run.py \
-  --target-name "New Energy Vehicles" \
-  --target-type industry \
+python scripts/run.py `
+  --target-name "New Energy Vehicles" `
+  --target-type industry `
   --language en
 ```
 
