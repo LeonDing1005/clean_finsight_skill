@@ -6,6 +6,8 @@ import warnings
 from typing import Dict, Any, Optional
 from pathlib import Path
 
+from src.typography import apply_typography_tokens
+
 
 class PromptLoader:
     """Load and manage prompts from YAML configuration files."""
@@ -46,7 +48,7 @@ class PromptLoader:
             )
         
         with open(yaml_file, 'r', encoding='utf-8') as f:
-            self.prompts = yaml.safe_load(f) or {}
+            self.prompts = apply_typography_tokens(yaml.safe_load(f) or {})
     
     def get_prompt(self, prompt_key: str, **kwargs) -> str:
         """Get a prompt template and optionally format it with kwargs."""

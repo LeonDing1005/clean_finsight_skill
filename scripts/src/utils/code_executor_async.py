@@ -13,6 +13,8 @@ from contextlib import redirect_stdout, redirect_stderr
 from typing import Dict, Any, List, Tuple
 import pandas as pd
 
+from src.typography import configure_matplotlib_fonts, matplotlib_setup_code
+
 _sandbox_logger = logging.getLogger(__name__ + ".sandbox")
 
 # Modules that LLM-generated code is NOT allowed to import.
@@ -117,18 +119,7 @@ class AsyncCodeExecutor:
             import numpy as np
             import matplotlib.pyplot as plt
             import matplotlib
-            import matplotlib.font_manager as fm
-            # font_path = os.path.join(os.path.dirname(__file__), 'fonts', 'kt_font.ttf')
-            
-            # if os.path.exists(font_path):
-            #     fm.fontManager.addfont(font_path)
-            #     font_prop = fm.FontProperties(fname=font_path)
-            #     custom_font_name = font_prop.get_name()
-            #     matplotlib.rcParams['font.family'] = custom_font_name
-            #     matplotlib.rcParams['font.sans-serif'] = [custom_font_name, 'SimHei', 'Arial Unicode MS']
-            # else:
-            matplotlib.rcParams['font.sans-serif'] = ['SimHei', 'sans-serif']
-            matplotlib.rcParams['axes.unicode_minus'] = False
+            configure_matplotlib_fonts(matplotlib)
             context.update({
                 'pd': pd,
                 'pandas': pd,
@@ -333,7 +324,7 @@ class AsyncCodeExecutor:
         stdout_capture = io.StringIO()
         stderr_capture = io.StringIO()
         has_error = False
-        header = "import matplotlib.pyplot as plt; plt.rcParams['font.sans-serif'] = ['SimHei']; plt.rcParams['axes.unicode_minus'] = False"       
+        header = matplotlib_setup_code()
         code = header + '\n' + code
         # Wrap exec so it can run inside a thread
         def sync_exec():

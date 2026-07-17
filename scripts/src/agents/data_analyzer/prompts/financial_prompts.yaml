@@ -309,7 +309,7 @@ draw_chart: |
      - Before `plt.tight_layout()`, call `plt.subplots_adjust(left=0.12, right=0.88, top=0.92, bottom=0.15)` to reserve space for axis labels.
      - Then call `plt.tight_layout(rect=[0, 0, 1, 1])` to fine-tune spacing.
      - After tight_layout, if the legend is outside, adjust right margin again: `plt.subplots_adjust(right=0.75)`.
-  4. **Font Requirements:** **The font in the image needs to be Chinese.** All text elements (axis labels, tick labels, legend, annotations) MUST use a UNIFIED font size of 11-13pt. Use the `SimHei` font. Never mix different font sizes — inconsistency looks unprofessional.
+  4. **Font Requirements:** Use `__LATIN_FONT__` for every Latin letter and digit. Use `__CHART_CJK_FONT__` as the first Chinese fallback. All text elements (axis labels, tick labels, legend, annotations) MUST use a UNIFIED font size of 11-13pt. Never force a Chinese font onto an entire mixed-language label, because that also changes its Latin letters and digits.
   5. **Data Processing Requirements:** Data in the image needs to be displayed aesthetically without overlapping. Adjust data label positions if necessary. For date and time data, ensure the format is correct and contains no redundant information.
   6. **Data Label Requirements:** Data labels must be in Chinese and match the data type (e.g., use integers to represent years). If label fonts are too long, rotate them to ensure aesthetics. Use `rotation=30` or `rotation=45` with `ha='right'` for x-axis tick labels when they are long.
   7. **Image Saving Requirements:** Save to the `session_output_dir` path, set DPI to 200, and ensure no white borders before saving. When saving, use double quotes for strings. Use `bbox_inches='tight'` with `pad_inches=0.2` (NOT pad_inches=0 — this clips Chinese characters).
@@ -330,19 +330,12 @@ draw_chart: |
   ```python
   import matplotlib.pyplot as plt
   import matplotlib
-  # ── Robust Chinese font setup ──
-  _CN_FONTS = ['SimHei', 'KaiTi', 'Microsoft YaHei', 'WenQuanYi Micro Hei', 'Noto Sans CJK SC']
-  _available = [f.name for f in matplotlib.font_manager.fontManager.ttflist]
-  _cn_font = None
-  for _f in _CN_FONTS:
-      if _f in _available:
-          _cn_font = _f
-          break
-  if _cn_font:
-      plt.rcParams['font.sans-serif'] = [_cn_font, 'DejaVu Sans']
-      plt.rcParams['font.family'] = 'sans-serif'
-  else:
-      plt.rcParams['font.family'] = 'sans-serif'
+  # Latin-first fallback: English and digits use the configured Latin font;
+  # Chinese glyphs fall through to the configured CJK candidates.
+  _FONT_FAMILIES = __CHART_FONT_FAMILIES__
+  plt.rcParams['font.family'] = _FONT_FAMILIES
+  plt.rcParams['font.serif'] = _FONT_FAMILIES
+  plt.rcParams['font.sans-serif'] = _FONT_FAMILIES
   plt.rcParams['axes.unicode_minus'] = False
 
   import seaborn as sns

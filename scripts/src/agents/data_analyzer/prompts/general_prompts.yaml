@@ -392,7 +392,7 @@ draw_chart: |
      - (Fallback) Place legend INSIDE using `loc='best'` with `framealpha=0.8`.
      - NEVER hardcode `loc='upper left'` or `loc='upper right'` without checking if it overlaps data.
   4. Omit chart titles and outer borders. Before `plt.tight_layout()`, call `plt.subplots_adjust(left=0.12, right=0.88, top=0.92, bottom=0.15)` to reserve space for axis labels.
-  5. Use the `KaiTi` font for all Chinese labels with UNIFIED sizing of 11-13 pt across all text elements (axis labels, tick labels, legend, annotations).
+  5. Use `__LATIN_FONT__` for every Latin letter and digit, with `__CHART_CJK_FONT__` as the first Chinese fallback. Keep sizing UNIFIED at 11-13 pt across axis labels, tick labels, legends, and annotations. Never force a Chinese font onto an entire mixed-language label.
   6. Tidy the data presentation to avoid overlapping marks; reformat dates or large numbers (e.g., convert to 10K/100M units with two decimals) as needed.
   7. Ensure labels remain readable—rotate text if necessary (use `rotation=30` or `rotation=45` with `ha='right'` for x-axis tick labels)—and keep them in the target language.
   8. Save to `session_output_dir` with DPI 200, `bbox_inches='tight'` with `pad_inches=0.2` (NOT 0 — this clips characters), and double quotes in path strings.
@@ -417,21 +417,12 @@ draw_chart: |
   ```python
   import matplotlib.pyplot as plt
   import matplotlib
-  # ── Robust Chinese font setup ──
-  # Try multiple common Chinese fonts; fall back to default sans-serif
-  _CN_FONTS = ['KaiTi', 'SimHei', 'Microsoft YaHei', 'WenQuanYi Micro Hei', 'Noto Sans CJK SC']
-  _available = [f.name for f in matplotlib.font_manager.fontManager.ttflist]
-  _cn_font = None
-  for _f in _CN_FONTS:
-      if _f in _available:
-          _cn_font = _f
-          break
-  if _cn_font:
-      plt.rcParams['font.sans-serif'] = [_cn_font, 'DejaVu Sans']
-      plt.rcParams['font.family'] = 'sans-serif'
-  else:
-      # Fallback: ensure minus sign renders correctly even without CJK font
-      plt.rcParams['font.family'] = 'sans-serif'
+  # Latin-first fallback: English and digits use the configured Latin font;
+  # Chinese glyphs fall through to the configured CJK candidates.
+  _FONT_FAMILIES = __CHART_FONT_FAMILIES__
+  plt.rcParams['font.family'] = _FONT_FAMILIES
+  plt.rcParams['font.serif'] = _FONT_FAMILIES
+  plt.rcParams['font.sans-serif'] = _FONT_FAMILIES
   plt.rcParams['axes.unicode_minus'] = False
 
   import seaborn as sns

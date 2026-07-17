@@ -682,6 +682,13 @@ llm_config_list:
 | `--allow-generated-code` | Enable LLM-generated Python for trusted inputs only | Disabled |
 | `--resume` | Resume from trusted local checkpoints only | Disabled |
 
+### Typography
+
+All report and chart fonts are centralized in `scripts/src/typography.py`.
+Change `LATIN_FONT` there to update Latin letters and digits across generated
+DOCX files, Word fields, numbering, and chart images. CJK chart fallbacks are
+controlled by `CHART_CJK_FONT_CANDIDATES` in the same file.
+
 ### Depth Presets
 
 | Level | Collect | Analyze | Report | Est. LLM Calls | Est. Time |
