@@ -11,10 +11,11 @@ from typing import Any, Iterable
 # Change fonts here. Document text, generated charts, and prompt examples all
 # consume these values.
 LATIN_FONT = "Times New Roman"
+CJK_FONT = "Microsoft YaHei"
 CHART_CJK_FONT_CANDIDATES = (
+    CJK_FONT,
     "SimHei",
     "KaiTi",
-    "Microsoft YaHei",
     "WenQuanYi Micro Hei",
     "Noto Sans CJK SC",
 )
@@ -23,7 +24,7 @@ CHART_FALLBACK_FONT = "DejaVu Sans"
 
 _TYPOGRAPHY_TOKENS = {
     "__LATIN_FONT__": LATIN_FONT,
-    "__CHART_CJK_FONT__": CHART_CJK_FONT_CANDIDATES[0],
+    "__CHART_CJK_FONT__": CJK_FONT,
     "__CHART_CJK_FONT_CANDIDATES__": repr(list(CHART_CJK_FONT_CANDIDATES)),
     "__CHART_FONT_FAMILIES__": repr(
         [LATIN_FONT, *CHART_CJK_FONT_CANDIDATES, CHART_FALLBACK_FONT]
@@ -53,6 +54,16 @@ def chart_font_families(extra_families: Iterable[str] = ()) -> list[str]:
         CHART_FALLBACK_FONT,
     ]
     return list(dict.fromkeys(font for font in ordered if font))
+
+
+def pandoc_pdf_font_args() -> list[str]:
+    """Return the shared XeLaTeX font variables for direct PDF output."""
+    return [
+        f"--variable=mainfont:{LATIN_FONT}",
+        f"--variable=sansfont:{LATIN_FONT}",
+        f"--variable=monofont:{LATIN_FONT}",
+        f"--variable=CJKmainfont:{CJK_FONT}",
+    ]
 
 
 def configure_matplotlib_fonts(matplotlib_module, extra_families: Iterable[str] = ()) -> list[str]:

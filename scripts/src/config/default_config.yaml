@@ -17,6 +17,7 @@ use_analysis_cache: True
 use_report_outline_cache: True
 use_full_report_cache: True
 use_post_process_cache: True
+enable_chart: False  # Requires --allow-generated-code and explicit opt-in.
 enable_generated_code: False  # Requires --allow-generated-code; do not enable for untrusted inputs.
 allow_unsafe_resume: False  # Requires --resume; only trust checkpoints created on this machine.
 

@@ -15,14 +15,20 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 
 # Load Config without the optional runtime dependencies used by src.utils.
+previous_utils_module = sys.modules.get("src.utils")
 utils_stub = types.ModuleType("src.utils")
 utils_stub.__path__ = [str(SCRIPTS_DIR / "src" / "utils")]
 utils_stub.AsyncLLM = type("AsyncLLM", (), {"__init__": lambda self, **kwargs: None})
-sys.modules.setdefault("src.utils", utils_stub)
+sys.modules["src.utils"] = utils_stub
 
 from src.config.config import Config
 from src.utils.url_validation import validate_public_http_url
 import run
+
+if previous_utils_module is None:
+    sys.modules.pop("src.utils", None)
+else:
+    sys.modules["src.utils"] = previous_utils_module
 
 
 class ConfigSecurityTests(unittest.TestCase):
@@ -108,6 +114,10 @@ class ConfigSecurityTests(unittest.TestCase):
             self.assertFalse(config["enable_generated_code"])
             config = run.build_config(self.build_args(config=str(config_path), allow_generated_code=True))
             self.assertTrue(config["enable_generated_code"])
+
+    def test_charts_are_disabled_by_default(self):
+        config = run.build_config(self.build_args())
+        self.assertFalse(config["enable_chart"])
 
     def test_redacts_common_secret_key_variants(self):
         with tempfile.TemporaryDirectory() as temp_dir:

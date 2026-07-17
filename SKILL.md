@@ -1,25 +1,16 @@
 ---
-name: finsight_research_test
+name: finsight-research
 description: >-
-  [TEST VERSION] Multi-agent financial deep research system for generating
-  publication-ready DOCX/PDF reports with automated data collection, chart
-  generation (VLM-reviewed), and structured analysis. Supports US
-  (yfinance/FRED), China A-share (akshare), Hong Kong, and general web-based
-  research. This is a Claude Code-adapted test fork of finsight-research. Use
-  when user needs: (1) in-depth financial research report on a company,
-  industry, or macro topic, (2) automated data gathering + analysis + report
-  pipeline, (3) "deep research" on stocks or financial subjects, (4)
-  行业研究报告, 个股深度分析, 深度研报, financial due diligence.
+  Multi-agent financial deep research system for generating
+  publication-ready DOCX/PDF reports with automated data collection, optional
+  chart generation for isolated trusted runs, and structured analysis. Supports US (yfinance/FRED), China
+  A-share (akshare), Hong Kong, and general web-based research. Use when the
+  user requests in-depth company, industry, stock, or macro research;
+  automated data gathering and report generation; financial due diligence;
+  行业研究报告; 个股深度分析; or 深度研报.
 ---
 
-# FinSight Research Skill [TEST — finsight_research_test]
-
-> ** 这是 finsight-research 的 Claude Code 适配测试分支。** 与原始版本的区别：
-> - 所有命令块已从 `bash` 转换为 `powershell`（Windows 兼容）
-> - `.env` 凭据已清除，使用 `.env.example` 模板
-> - 技能名注册为 `finsight_research_test`，不与 `finsight-research` 冲突
-> - 行延续符从 `\` 改为 `` ` ``（PowerShell 语法）
-> - 深度耗时估算已与 SKILL.md 对齐
+# FinSight Research Skill
 
 Multi-agent financial deep research pipeline. From a ticker symbol to a publication-ready report in one command.
 
@@ -57,8 +48,8 @@ Read the user's message carefully. A target is **PRESENT** only if the message e
 > | 阶段 | 做什么 |
 > |------|--------|
 > | Phase 1 · 数据采集 | 自动收集行情、财报、新闻、政策、机构持仓等多维度数据 |
-> | Phase 2 · 数据分析 | LLM 生成 Python 分析代码并执行，产出图表和量化结论 |
-> | Phase 3 · 报告生成 | 大纲→分节撰写→润色→图表插入→封面→参考文献 |
+> | Phase 2 · 数据分析 | 默认基于已采集数据直接分析；受信任的隔离运行可启用 Python 和图表 |
+> | Phase 3 · 报告生成 | 大纲→分节撰写→润色→可选图表插入→封面→参考文献 |
 >
 > ### 支持的市场
 > -  美股 (yfinance + FRED)
@@ -74,17 +65,17 @@ Read the user's message carefully. A target is **PRESENT** only if the message e
 > | `high` | 5-6 小时 |
 >
 > ### 输出格式
-> DOCX / PDF / Markdown，含图表和专业排版
+> DOCX / PDF / Markdown，含专业排版；隔离运行可选图表
 >
 > ### 使用方式
 > ```
-> /finsight_research_test <标的> [--depth low|medium|high] [--target-type company|industry|macro|general]
+> /finsight-research <标的> [--depth low|medium|high] [--target-type company|industry|macro|general]
 > ```
 > **示例**：
-> - `/finsight_research_test AAPL --target-type company` — 公司深度研究（支持美股/A股/港股）
-> - `/finsight_research_test "新能源汽车" --target-type industry` — 行业产业链研究
-> - `/finsight_research_test "美联储加息周期" --target-type macro` — 宏观政策研究
-> - `/finsight_research_test "比特币与黄金的避险属性对比" --target-type general` — 通用主题研究
+> - `/finsight-research AAPL --target-type company` — 公司深度研究（支持美股/A股/港股）
+> - `/finsight-research "新能源汽车" --target-type industry` — 行业产业链研究
+> - `/finsight-research "美联储加息周期" --target-type macro` — 宏观政策研究
+> - `/finsight-research "比特币与黄金的避险属性对比" --target-type general` — 通用主题研究
 >
 > **请告诉我你想研究什么？**
 
@@ -138,7 +129,7 @@ Check if the following parameters were specified by the user. For each missing o
 - `market`: Infer from ticker if possible (`A` / `US` / `HK`), otherwise ask
 - `language`: Infer from target name (Chinese name → `zh`, English → `en`), otherwise ask
 - `depth`: **MUST ask if not specified** — `low` / `medium` / `high`. Do NOT default.
-- `enable_chart`: Default `true` if not specified
+- `enable_chart`: Default `false`. Enabling charts requires explicit user approval for generated Python and an OS-isolated environment.
 
 ### Step 3: LLM Generates Suggested Tasks
 
@@ -276,6 +267,7 @@ Create a `.env` file (in working directory or `~/.env`) with:
 | `EMBEDDING_API_KEY` | No | Embedding API key |
 | `EMBEDDING_BASE_URL` | No | Embedding API base URL |
 | `SERPER_API_KEY` | No | Google Search via Serper |
+| `FRED_API_KEY` | No | US macroeconomic data from FRED |
 
 If VLM/Embedding vars are missing, chart critique and semantic search degrade gracefully.
 
@@ -309,7 +301,7 @@ Check if `{SKILL_DIR}/.env` file exists.
 1. Read the file and parse key=value pairs
 2. Verify required variables are set: `DS_MODEL_NAME`, `DS_API_KEY`, `DS_BASE_URL`
 3. If any required vars are missing → ask user only for the missing values, append to `.env`
-4. Optional vars (`VLM_*`, `EMBEDDING_*`, `SERPER_API_KEY`) missing → no action needed, they degrade gracefully
+4. Optional vars (`VLM_*`, `EMBEDDING_*`, `SERPER_API_KEY`, `FRED_API_KEY`) missing → no action needed, their related features degrade gracefully
 
 **If `.env` does NOT exist:**
 1. Ask the user:
@@ -328,7 +320,7 @@ Check if `{SKILL_DIR}/.env` file exists.
 
 **All parameters have been gathered and confirmed in the Target Type & Task Customization step above:**
 - `target_name`: Company/industry name (from GATE 0)
-- `stock_code`: Ticker symbol (from GATE 0, or "N/A")
+- `stock_code`: Ticker symbol (from GATE 0, or `N/A` inside YAML)
 - `target_type`: Confirmed by user (company / industry / macro / general)
 - `market`: Confirmed by user (A / US / HK)
 - `language`: Confirmed by user (zh / en)
@@ -338,10 +330,11 @@ Check if `{SKILL_DIR}/.env` file exists.
 - `custom_analysis_tasks`: Finalized list confirmed by user
 
 **Generate the YAML config file:**
-1. Create `{SKILL_DIR}/config_{STOCK_CODE}.yaml`
-2. If a config file with the same name already exists → ask: "Found existing config for {STOCK_CODE}. Use it (1), regenerate (2), or edit (3)?"
-3. Save the config with ALL parameters including the finalized task lists
-4. Use `${DS_MODEL_NAME}` style env var references in `llm_config_list` — NEVER hardcode API keys
+1. Derive `{CONFIG_ID}` by replacing every character outside `[A-Za-z0-9._-]` in `STOCK_CODE` with `_`; use `N_A` when no ticker exists.
+2. Create `{SKILL_DIR}/config_{CONFIG_ID}.yaml`.
+3. If a config file with the same name already exists → ask: "Found existing config for {CONFIG_ID}. Use it (1), regenerate (2), or edit (3)?"
+4. Save the config with ALL parameters including the finalized task lists.
+5. Use `${DS_MODEL_NAME}` style env var references in `llm_config_list` — NEVER hardcode API keys.
 
 **Config file template:**
 ```yaml
@@ -352,7 +345,7 @@ market: A
 language: zh
 depth: medium
 output_dir: "./outputs"
-enable_chart: true
+enable_chart: false
 use_collect_data_cache: true
 use_analysis_cache: true
 use_report_outline_cache: true
@@ -360,6 +353,7 @@ use_full_report_cache: true
 rate_limits:
   search_engines: 1.0
   financial_apis: 0.5
+  fred_api: 0.5
   yfinance: 0.2
 custom_collect_tasks:
   - "Task description 1"
@@ -475,8 +469,13 @@ Then proceed to the research pipeline.
 
 ### Step 1: Launch in Background
 
+Set `{GENERATED_CODE_FLAG}` to an empty string for the safe default. Set it to
+`--allow-generated-code` only when the user explicitly approved generated
+Python, the process runs in an OS-isolated environment, and `enable_chart` is
+`true`.
+
 ```powershell
-python {SKILL_DIR}/scripts/run.py --config {SKILL_DIR}/config_{STOCK_CODE}.yaml 2>&1
+python {SKILL_DIR}/scripts/run.py --config {SKILL_DIR}/config_{CONFIG_ID}.yaml {GENERATED_CODE_FLAG} 2>&1
 ```
 
 Use `run_in_background: true`. The pipeline writes detailed logs to `{output_dir}/{target_name}/logs/`.
@@ -551,32 +550,14 @@ On detecting an error:
    - **Missing dependency** → install the missing package, then rerun the pipeline (use `--resume` only for trusted local checkpoints)
    - **Code generation error (repeated)** → the LLM's prompt may need improvement; read the agent's system prompt file and fix the instruction
    - **Framework bug** (e.g. `'list' object has no attribute 'columns'`) → read the relevant source file and fix the bug
-3. **Apply the fix** — edit the source file directly
-4. **Record the fix** — append to `{SKILL_DIR}/fix-log.md`
-
-### Fix Log Format
-
-Every fix MUST be recorded in `{SKILL_DIR}/fix-log.md` using this template:
-
-```markdown
-## 修复 #N: 简短标题 (HH:MM)
-
-**问题**: <what broke, paste the exact error>
-**根因**: <why it happened>
-**修复**: <what was changed>
-**文件**: `path/to/file.py`
-
----
-```
+3. **Handle the fix safely** — report framework bugs and request authorization before modifying the installed skill during a research run
 
 ### After Pipeline Completes
 
 1. Report to user: success or failure
 2. If success: show output file paths and sizes
 3. If failure: summarize the error and what was attempted
-4. Update fix-log.md with a final tally: `**累计修复**: N 个 Bug`
-
----
+4. Report any remaining limitations or skipped optional features
 
 ---
 
@@ -637,7 +618,7 @@ custom_analysis_tasks:
   - "Evaluate profitability metrics (ROE, margins)"
 
 # === Charts ===
-enable_chart: true               # Generate charts with VLM critique
+enable_chart: false              # Requires --allow-generated-code in OS isolation
 
 # === Cache/Resume ===
 use_collect_data_cache: true
@@ -649,6 +630,7 @@ use_full_report_cache: true
 rate_limits:
   search_engines: 1.0
   financial_apis: 0.5
+  fred_api: 0.5
   yfinance: 0.2
 
 # === Models ===
@@ -678,7 +660,7 @@ llm_config_list:
 | `--embedding-model MODEL` | Override embedding model | From env |
 | `--max-concurrent N` | Max concurrent agents | `3` |
 | `--depth low\|medium\|high` | Research depth: low=fast, medium=balanced, high=thorough | `medium` |
-| `--no-charts` | Disable chart generation | Enabled only with `--allow-generated-code` |
+| `--no-charts` | Disable chart generation when generated code is enabled | Charts disabled unless `--allow-generated-code` is set |
 | `--allow-generated-code` | Enable LLM-generated Python for trusted inputs only | Disabled |
 | `--resume` | Resume from trusted local checkpoints only | Disabled |
 
@@ -686,8 +668,10 @@ llm_config_list:
 
 All report and chart fonts are centralized in `scripts/src/typography.py`.
 Change `LATIN_FONT` there to update Latin letters and digits across generated
-DOCX files, Word fields, numbering, and chart images. CJK chart fallbacks are
-controlled by `CHART_CJK_FONT_CANDIDATES` in the same file.
+DOCX files, Word fields, numbering, chart images, and PDF output. Change
+`CJK_FONT` there to update the primary Chinese font used by charts and direct
+PDF output. Additional chart fallbacks are controlled by
+`CHART_CJK_FONT_CANDIDATES` in the same file.
 
 ### Depth Presets
 
@@ -706,11 +690,11 @@ The **DataCollector** agent gathers data using registered tools:
 - Web search: Serper/Bing/DuckDuckGo for unstructured data
 
 ### Phase 2: Data Analysis
-The **DataAnalyzer** agent performs code-first analysis:
-1. LLM generates Python analysis code
-2. Code executes in sandbox with access to collected data
-3. Charts generated with professional color palettes
-4. VLM reviews and critiques chart quality (optional, iterative refinement)
+The **DataAnalyzer** agent analyzes the collected evidence in two modes:
+1. By default, it receives a bounded, relevance-ordered data context and writes a source-grounded report without executing generated code.
+2. With `--allow-generated-code`, it can run Python calculations against collected data and generate charts.
+3. When charts are enabled, they use the centralized professional typography and palette settings.
+4. A configured VLM can review and critique chart quality.
 
 ### Phase 3: Report Generation
 The **ReportGenerator** agent composes the final report:
@@ -742,10 +726,10 @@ Reports are saved to `output_dir/target_name/`:
 
 - **LLM cost**: Each report requires 50-100+ LLM calls. Use a cost-effective model like DeepSeek for production.
 - **akshare instability**: Chinese market APIs change frequently. Update akshare regularly: `pip install akshare --upgrade`
-- **Generated code**: Disabled by default. `--allow-generated-code` is only appropriate for trusted inputs in an OS-isolated environment; the bundled executor is not a security boundary.
+- **Generated code**: Disabled by default. Data collection still works through structured JSON tool calls. `--allow-generated-code` is only appropriate for trusted inputs in an OS-isolated environment; the bundled executor is not a security boundary.
 - **Checkpoint trust**: Resume is disabled by default because legacy checkpoints use Python serialization. Only use `--resume` for checkpoints created locally in a trusted output directory.
 - **pandoc required for DOCX**: Without pandoc, only Markdown output is available.
-- **VLM optional**: Chart critique is skipped if VLM is not configured. Charts still generate but without quality review.
+- **VLM optional**: In an approved generated-code run, chart critique is skipped if VLM is not configured; charts can still generate without quality review.
 - **Report quality depends on LLM**: Best results with top-tier models (GPT-4o, DeepSeek-V3, Claude).
 
 ## Advanced

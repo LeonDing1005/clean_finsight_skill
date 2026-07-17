@@ -12,3 +12,4 @@ venv/
 output/
 outputs/
 logs/
+config_*.yaml

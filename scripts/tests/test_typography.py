@@ -18,12 +18,15 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from src.typography import (  # noqa: E402
+    CJK_FONT,
+    CHART_CJK_FONT_CANDIDATES,
     LATIN_FONT,
     apply_typography_tokens,
     configure_matplotlib_fonts,
     enforce_figure_text_fonts,
     matplotlib_setup_code,
     normalize_docx_typography,
+    pandoc_pdf_font_args,
 )
 
 
@@ -123,10 +126,14 @@ class TypographyTests(unittest.TestCase):
         module = SimpleNamespace(rcParams={})
         families = configure_matplotlib_fonts(module)
         self.assertEqual(families[0], LATIN_FONT)
+        self.assertEqual(CHART_CJK_FONT_CANDIDATES[0], CJK_FONT)
         self.assertEqual(module.rcParams["font.family"][0], LATIN_FONT)
         setup_code = matplotlib_setup_code()
         self.assertIn(LATIN_FONT, setup_code)
         compile(setup_code, "<matplotlib-setup>", "exec")
+        pdf_args = pandoc_pdf_font_args()
+        self.assertIn(f"--variable=mainfont:{LATIN_FONT}", pdf_args)
+        self.assertIn(f"--variable=CJKmainfont:{CJK_FONT}", pdf_args)
 
         class Artist:
             def set_fontfamily(self, value):
