@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: scripts/requirements-core.txt
+      - name: Install core dependencies
+        run: python -m pip install -r scripts/requirements-core.txt
+      - name: Run unit tests
+        run: python -m unittest discover -s scripts/tests -v
+      - name: Compile Python sources
+        run: python -m compileall -q scripts
+      - name: Validate skill metadata
+        run: >-
+          python -c "from pathlib import Path; import yaml;
+          text=Path('SKILL.md').read_text(encoding='utf-8');
+          metadata=yaml.safe_load(text.split('---', 2)[1]);
+          assert metadata['name'] == 'finsight-research';
+          assert metadata['description']"

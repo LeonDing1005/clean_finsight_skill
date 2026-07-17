@@ -116,8 +116,8 @@ Examples:
 
     # Execution controls
     p.add_argument("--depth", default="medium", choices=["low", "medium", "high"],
-                   help="Research depth: low (fast, ~1-3min), medium (balanced, ~3-8min), "
-                        "high (thorough, ~5-15min). Default: medium")
+                   help="Research depth: low (~1-2h), medium (~3-4h), "
+                        "high (~5-6h). Default: medium")
     p.add_argument("--max-concurrent", type=int, default=3,
                    help="Max concurrent agents (default: 3, 0=unlimited)")
     p.add_argument("--no-charts", action="store_true", help="Disable chart generation")
@@ -187,7 +187,7 @@ def build_config(args: argparse.Namespace) -> dict:
         "output_dir": "./outputs",
         "custom_collect_tasks": [],
         "custom_analysis_tasks": [],
-        "enable_chart": True,
+        "enable_chart": False,
         "enable_generated_code": False,
         "save_note": None,
         "rate_limits": {
@@ -298,7 +298,7 @@ async def run_pipeline(config_dict: dict, args: argparse.Namespace) -> None:
     use_vlm_name = args.vlm_model or os.getenv("VLM_MODEL_NAME")
     use_embedding_name = args.embedding_model or os.getenv("EMBEDDING_MODEL_NAME")
     enable_generated_code = config_dict.get("enable_generated_code", False)
-    enable_chart = config_dict.get("enable_chart", True) and enable_generated_code
+    enable_chart = config_dict.get("enable_chart", False) and enable_generated_code
 
     # Initialize config
     config = Config(config_dict=config_dict)
@@ -333,7 +333,7 @@ async def run_pipeline(config_dict: dict, args: argparse.Namespace) -> None:
     # Initialize logger
     log_dir = os.path.join(config.working_dir, "logs")
     logger = setup_logger(log_dir=log_dir, log_level=logging.INFO)
-    if config_dict.get("enable_chart", True) and not enable_generated_code:
+    if config_dict.get("enable_chart", False) and not enable_generated_code:
         logger.info("Chart generation disabled because generated code is not explicitly enabled")
 
     if resume:

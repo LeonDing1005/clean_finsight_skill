@@ -141,6 +141,13 @@ class DataAnalyzer(BaseAgent):
                 user_query=analysis_task,
                 target_language=target_language_name
             )
+        if not self.enable_code:
+            prompt = (
+                "RUNTIME CONSTRAINT: Generated Python is disabled. Do not emit <execute>. "
+                "Analyze only the supplied data catalog, do not invent calculations or missing values, "
+                "and return the best-supported final answer in <report> tags.\n\n"
+                + prompt
+            )
         return [{"role": "user", "content": prompt}]
     
     async def _format_collect_data(self, analysis_task, collect_data_list):
@@ -157,8 +164,51 @@ class DataAnalyzer(BaseAgent):
         #         formatted_data += f"Data (id:{idx}):\n{item.brief_str()}\n\n"
 
         formatted_data = ""
-        for idx,item in enumerate(collect_data_list):
-            formatted_data += f"Data (id:{idx}):\n{item.brief_str()}\n\n"
+        max_total_chars = 60000
+        max_item_chars = 12000
+        indexed_data = list(enumerate(collect_data_list))
+        if not self.enable_code:
+            summary_budget = 12000
+            summary_width = max(120, min(500, summary_budget // max(len(indexed_data), 1)))
+            summaries = []
+            for idx, item in indexed_data:
+                metadata = re.sub(
+                    r"\s+",
+                    " ",
+                    f"{item.name} | {item.description} | Source: {item.source}",
+                ).strip()
+                summaries.append(f"- Data id {idx}: {metadata[:summary_width]}")
+            formatted_data = (
+                "Data catalog index:\n" + "\n".join(summaries)
+            )[:summary_budget] + "\n\n"
+
+            query_tokens = set(re.findall(r"[a-z0-9]+|[\u4e00-\u9fff]", analysis_task.lower()))
+
+            def relevance(entry):
+                _, item = entry
+                metadata = f"{item.name} {item.description} {item.source}".lower()
+                item_tokens = set(re.findall(r"[a-z0-9]+|[\u4e00-\u9fff]", metadata))
+                return len(query_tokens & item_tokens)
+
+            indexed_data.sort(key=lambda entry: (-relevance(entry), entry[0]))
+
+        for idx,item in indexed_data:
+            if self.enable_code:
+                item_text = item.brief_str()
+            else:
+                item_text = (
+                    f"Data name: {item.name}\n"
+                    f"Description: {item.description}\n"
+                    f"Source: {item.source}\n"
+                    f"Data:\n{item.get_full_string()}"
+                )
+                if len(item_text) > max_item_chars:
+                    item_text = item_text[:max_item_chars] + "\n[truncated]"
+            entry = f"Detailed data (id:{idx}):\n{item_text}\n\n"
+            remaining = max_total_chars - len(formatted_data)
+            if remaining <= 0:
+                break
+            formatted_data += entry[:remaining]
             
         return formatted_data
     

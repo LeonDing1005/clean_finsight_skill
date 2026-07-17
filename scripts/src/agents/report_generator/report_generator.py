@@ -20,7 +20,56 @@ from src.agents.report_generator.report_class import Report, Section
 from src.utils.helper import extract_markdown, get_md_img
 from src.utils.index_builder import IndexBuilder
 from src.utils.figure_helper import draw_kline_chart
-from src.typography import LATIN_FONT, normalize_docx_typography
+from src.typography import LATIN_FONT, normalize_docx_typography, pandoc_pdf_font_args
+
+
+def _lexical_search(query: str, corpus: List[str], top_k: int = 5) -> List[Dict[str, float]]:
+    """Rank text locally when an embedding model is unavailable."""
+    def normalize(value: str) -> str:
+        return re.sub(r"\s+", " ", str(value or "").lower()).strip()
+
+    def tokens(value: str) -> set[str]:
+        return set(re.findall(r"[a-z0-9]+|[\u4e00-\u9fff]", normalize(value)))
+
+    normalized_query = normalize(query)
+    query_tokens = tokens(query)
+    ranked = []
+    for index, candidate in enumerate(corpus):
+        normalized_candidate = normalize(candidate)
+        candidate_tokens = tokens(candidate)
+        overlap = len(query_tokens & candidate_tokens)
+        denominator = max(len(query_tokens | candidate_tokens), 1)
+        score = overlap / denominator
+        if normalized_query and normalized_candidate and (
+            normalized_query in normalized_candidate or normalized_candidate in normalized_query
+        ):
+            score += 1.0
+        ranked.append({"id": index, "score": score})
+    ranked = [item for item in ranked if item["score"] > 0]
+    ranked.sort(key=lambda item: (-item["score"], item["id"]))
+    return ranked[:max(top_k, 0)]
+
+
+def _append_images_once(report, images: List[Tuple[int, str, str]]) -> int:
+    """Append unmatched images once to the final section, preserving numbering."""
+    if not report.sections:
+        return 0
+    for image_number, caption, path in images:
+        report.sections[-1]._content.append(get_md_img(path, caption, image_number))
+    return len(images)
+
+
+def _format_reference_line(number: int, content: str) -> str:
+    content = str(content or "").replace("[PDF]", "").strip()
+    parts = content.split("\n")
+    if len(parts) >= 2 and parts[-1].strip().startswith("http"):
+        title = " ".join(parts[:-1]).strip()
+        url = parts[-1].strip()
+        return f"{number}. [{title}]({url})\n"
+    if " http" in content:
+        split_at = content.index(" http")
+        return f"{number}. [{content[:split_at].strip()}]({content[split_at:].strip()})\n"
+    return f"{number}. {content}\n"
 
 def _inject_word_toc(docx_path: str):
     """Inject a real Word TOC field (with updatable page numbers).
@@ -472,24 +521,27 @@ class ReportGenerator(BaseAgent):
                     para_texts.append(s)
 
         if not para_texts:
-            self.logger.warning("No paragraphs for chart placement — appending at end")
-            for section in report.sections:
-                for i, (cap, path) in enumerate(zip(img_captions, img_paths)):
-                    section._content.append(get_md_img(path, cap, i + 1))
+            self.logger.warning("No paragraphs for chart placement; appending each chart once")
+            _append_images_once(
+                report,
+                [(i + 1, cap, path) for i, (cap, path) in enumerate(zip(img_captions, img_paths))],
+            )
             return report
 
-        try:
-            para_index = IndexBuilder(config=self.config, embedding_model=self.use_embedding_name,
-                                      working_dir=self.working_dir)
-            await para_index._build_index(para_texts)
-        except Exception as e:
-            self.logger.warning(f"Para index failed: {e}; sequential fallback")
-            ci = 0
-            for section in report.sections:
-                if ci < len(img_captions):
-                    section._content.append(get_md_img(img_paths[ci], img_captions[ci], ci + 1))
-                    ci += 1
-            return report
+        para_index = None
+        if self.use_embedding_name:
+            try:
+                para_index = IndexBuilder(
+                    config=self.config,
+                    embedding_model=self.use_embedding_name,
+                    working_dir=self.working_dir,
+                )
+                await para_index._build_index(para_texts)
+            except Exception as e:
+                self.logger.warning(f"Para index failed: {e}; using lexical chart placement")
+                para_index = None
+        else:
+            self.logger.info("Embedding model not configured; using lexical chart placement")
 
         # insertion_plan[section_idx] = [(para_idx, img_markdown), ...]
         insertion_plan = {si: [] for si in range(len(report.sections))}
@@ -497,14 +549,16 @@ class ReportGenerator(BaseAgent):
 
         for ci, caption in enumerate(img_captions):
             try:
-                results = await para_index.search(caption)
+                results = await para_index.search(caption) if para_index else []
+                if not results:
+                    results = _lexical_search(caption, para_texts, top_k=1)
                 if not results:
                     continue
                 best = int(results[0]['id'])
                 if 0 <= best < len(para_entries):
                     si, pi, _ = para_entries[best]
                     insertion_plan[si].append((pi, get_md_img(img_paths[ci], caption, ci + 1)))
-                    used.add(caption)
+                    used.add(ci)
             except Exception as e:
                 self.logger.warning(f"Chart '{caption[:40]}' placement failed: {e}")
 
@@ -518,11 +572,12 @@ class ReportGenerator(BaseAgent):
                     section._content.append(img_md)
 
         # ── Phase 4: unmatched charts → end of last section ──
-        unmatched = [(c, p) for c, p in zip(img_captions, img_paths) if c not in used]
-        if unmatched and report.sections:
-            base = len(used)
-            for i, (cap, path) in enumerate(unmatched):
-                report.sections[-1]._content.append(get_md_img(path, cap, base + i + 1))
+        unmatched = [
+            (i + 1, caption, img_paths[i])
+            for i, caption in enumerate(img_captions)
+            if i not in used
+        ]
+        _append_images_once(report, unmatched)
 
         return report
 
@@ -640,7 +695,7 @@ class ReportGenerator(BaseAgent):
         for item in collect_data_list:
             # Keep compatibility with ToolResult fields expected by downstream report assembly.
             name = item.name + '\n' + item.description # used for index
-            content = item.source # used for display citation
+            content = item.source or item.name # used for display citation
             # for url, find the title in search results
             if isinstance(item, ClickResult):
                 url = item.link
@@ -656,33 +711,28 @@ class ReportGenerator(BaseAgent):
                     'content': content 
                 })
         self.logger.info(f"Total data for reference: {len(all_data)}")
-
-        total_corpus = [item['name'] for item in all_data]
-        index = IndexBuilder(config=self.config, embedding_model=self.use_embedding_name, working_dir=self.working_dir)
-        try:
-            await index._build_index(total_corpus)
-        except Exception as e:
-            self.logger.warning(f"Failed to build embedding index: {e}. References will use fallback numbering.")
-            # Fallback: assign sequential numbers to all references without semantic matching
-            reference_str = "## Reference Data Sources\n\n"
-            for idx, item in enumerate(all_data):
-                content = item['content'].replace("[PDF]", "")
-                parts = content.strip().split("\n")
-                if len(parts) >= 2 and parts[-1].strip().startswith("http"):
-                    title = " ".join(parts[:-1]).strip()
-                    url = parts[-1].strip()
-                    reference_str += f"{idx + 1}. [{title}]({url})\n"
-                elif " http" in content:
-                    i = content.index(" http")
-                    reference_str += f"{idx + 1}. [{content[:i].strip()}]({content[i:].strip()})\n"
-                else:
-                    reference_str += f"{idx + 1}. {content}\n"
-            new_section = Section('Reference Data Sources', reference_str)
-            new_section.set_content(reference_str)
-            report.sections.append(new_section)
+        if not all_data:
+            self.logger.warning("No collected sources available; skipping reference section")
             return report
 
+        total_corpus = [item['name'] for item in all_data]
+        index = None
+        if self.use_embedding_name:
+            try:
+                index = IndexBuilder(
+                    config=self.config,
+                    embedding_model=self.use_embedding_name,
+                    working_dir=self.working_dir,
+                )
+                await index._build_index(total_corpus)
+            except Exception as e:
+                self.logger.warning(f"Failed to build embedding index: {e}; using lexical citations")
+                index = None
+        else:
+            self.logger.info("Embedding model not configured; using lexical citations")
+
         total_cited_dict = {}
+        source_pattern = re.compile(r'\[[Ss]ource[:：]\s*(.*?)\]')
         for section in report.sections:
             # Optional: log section length
             try:
@@ -693,38 +743,36 @@ class ReportGenerator(BaseAgent):
             for p_paragraph in section._content:
                 content = p_paragraph
                 # Locate citation placeholders
-                match_list = re.findall(r'\[[Ss]ource[：:]\s*(.*?)\]',content)
+                match_list = source_pattern.findall(content)
                 self.logger.debug(f"Match list: {match_list}")
                 for match_item in match_list:
-                    # Use BM25/embedding search
-                    search_result = await index.search(match_item, top_k=5)
+                    search_result = await index.search(match_item, top_k=5) if index else []
+                    if not search_result:
+                        search_result = _lexical_search(match_item, total_corpus, top_k=1)
                     if not search_result:
                         continue  # Skip this citation if search returns empty
-                    score_list = [item['score'] for item in search_result]
                     id_list = [item['id'] for item in search_result]  # Get actual data indices
-                    self.logger.debug(f"Score list: {score_list}")
                     self.logger.debug(f"ID list: {id_list}")
-                    # Sort by score (descending) and get corresponding indices
-                    sorted_idx = np.argsort(score_list)[::-1]
-                    score_list = np.array(score_list)
-                    score_list = np.exp(score_list) / np.sum(np.exp(score_list))
-
-                    cite_list = []
-                    for pos in sorted_idx:
-                        pos = int(pos)
-                        actual_idx = id_list[pos]  # Get the actual data index
-                        if score_list[pos] > 0.2 and len(cite_list) < 5:
-                            cite_list.append(actual_idx)
-                    if len(cite_list) == 0:
-                        # If no item meets threshold, use the top result
-                        cite_list.append(id_list[sorted_idx[0]])
-                    new_cite_list = []
+                    if index:
+                        scores = np.array([item['score'] for item in search_result], dtype=float)
+                        sorted_positions = np.argsort(scores)[::-1]
+                        weights = np.exp(scores - np.max(scores))
+                        weights = weights / np.sum(weights)
+                        cite_list = [
+                            id_list[int(position)]
+                            for position in sorted_positions
+                            if weights[int(position)] > 0.2
+                        ][:5]
+                        if not cite_list:
+                            cite_list = [id_list[int(sorted_positions[0])]]
+                    else:
+                        cite_list = id_list[:1]
                     for idx in cite_list:
                         if idx not in total_cited_dict:
                             total_cited_dict[idx] = len(total_cited_dict) + 1
                     new_cite_list = [total_cited_dict[idx] for idx in cite_list]
                     # Build the regex for replacement
-                    pattern_to_replace = r'\[[Ss]ource[：:]\s*' + re.escape(match_item) + r'\]'
+                    pattern_to_replace = r'\[[Ss]ource[:：]\s*' + re.escape(match_item) + r'\]'
                     content = re.sub(pattern_to_replace, f'[{",".join([str(item) for item in new_cite_list])}]', content)
 
                 section_new_content.append(content)
@@ -732,23 +780,11 @@ class ReportGenerator(BaseAgent):
 
 
         reference_str = "## Reference Data Sources\n\n"
+        if not total_cited_dict:
+            self.logger.warning("No citation placeholders matched collected sources")
+            return report
         for old_index, new_index in total_cited_dict.items():
-            content = all_data[old_index]['content']
-            content = content.replace("[PDF]", "")
-            # Parse "Title\nURL" or "Title URL" into clickable markdown link
-            parts = content.strip().split("\n")
-            if len(parts) >= 2 and parts[-1].strip().startswith("http"):
-                title = " ".join(parts[:-1]).strip()
-                url = parts[-1].strip()
-                reference_str += f"{new_index}. [{title}]({url})\n"
-            elif " http" in content:
-                # "Title http://..." format
-                idx = content.index(" http")
-                title = content[:idx].strip()
-                url = content[idx:].strip()
-                reference_str += f"{new_index}. [{title}]({url})\n"
-            else:
-                reference_str += f"{new_index}. {content}\n"
+            reference_str += _format_reference_line(new_index, all_data[old_index]['content'])
         new_section = Section('Reference Data Sources', reference_str)
         new_section.set_content(reference_str)
         report.sections.append(new_section)
@@ -955,9 +991,7 @@ class ReportGenerator(BaseAgent):
                         "--toc-depth=3",
                         f"--resource-path={working_dir}",
                         "--pdf-engine=xelatex",
-                        f"--variable=mainfont:{LATIN_FONT}",
-                        f"--variable=sansfont:{LATIN_FONT}",
-                        f"--variable=monofont:{LATIN_FONT}",
+                        *pandoc_pdf_font_args(),
                     ]
                     pypandoc.convert_file(
                         md_path, 'pdf',
