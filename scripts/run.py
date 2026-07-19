@@ -126,7 +126,7 @@ Examples:
         "--allow-generated-code",
         dest="enable_generated_code",
         action="store_true",
-        help="Enable LLM-generated Python (default; retained for backward compatibility).",
+        help=argparse.SUPPRESS,
     )
     generated_code_group.add_argument(
         "--no-generated-code",

@@ -1,11 +1,13 @@
 """Regression tests for configuration security boundaries."""
 
+import io
 import json
 import argparse
 import sys
 import tempfile
 import types
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -118,6 +120,15 @@ class ConfigSecurityTests(unittest.TestCase):
             self.assertFalse(run.parse_args().enable_generated_code)
         with mock.patch.object(sys, "argv", ["run.py", "--allow-generated-code"]):
             self.assertTrue(run.parse_args().enable_generated_code)
+
+    def test_help_only_exposes_generated_code_opt_out(self):
+        output = io.StringIO()
+        with mock.patch.object(sys, "argv", ["run.py", "--help"]):
+            with redirect_stdout(output), self.assertRaises(SystemExit) as error:
+                run.parse_args()
+        self.assertEqual(error.exception.code, 0)
+        self.assertIn("--no-generated-code", output.getvalue())
+        self.assertNotIn("--allow-generated-code", output.getvalue())
 
     def test_config_file_can_disable_generated_code(self):
         with tempfile.TemporaryDirectory() as temp_dir:

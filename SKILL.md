@@ -669,7 +669,6 @@ llm_config_list:
 | `--depth low\|medium\|high` | Research depth: low=fast, medium=balanced, high=thorough | `medium` |
 | `--no-charts` | Disable chart generation | Charts disabled |
 | `--no-generated-code` | Disable LLM-generated Python | Generated code enabled |
-| `--allow-generated-code` | Explicitly enable generated code; retained for backward compatibility | Generated code enabled |
 | `--resume` | Resume from trusted local checkpoints only | Disabled |
 
 ### Typography
