@@ -48,7 +48,7 @@ Read the user's message carefully. A target is **PRESENT** only if the message e
 > | 阶段 | 做什么 |
 > |------|--------|
 > | Phase 1 · 数据采集 | 自动收集行情、财报、新闻、政策、机构持仓等多维度数据 |
-> | Phase 2 · 数据分析 | 默认基于已采集数据直接分析；受信任的隔离运行可启用 Python 和图表 |
+> | Phase 2 · 数据分析 | 默认生成并执行 Python 分析代码，产出量化结论；图表可单独启用 |
 > | Phase 3 · 报告生成 | 大纲→分节撰写→润色→可选图表插入→封面→参考文献 |
 >
 > ### 支持的市场
@@ -129,7 +129,8 @@ Check if the following parameters were specified by the user. For each missing o
 - `market`: Infer from ticker if possible (`A` / `US` / `HK`), otherwise ask
 - `language`: Infer from target name (Chinese name → `zh`, English → `en`), otherwise ask
 - `depth`: **MUST ask if not specified** — `low` / `medium` / `high`. Do NOT default.
-- `enable_chart`: Default `false`. Enabling charts requires explicit user approval for generated Python and an OS-isolated environment.
+- `enable_chart`: Default `false`. Enabling charts requires explicit user approval and an OS-isolated environment.
+- `enable_generated_code`: Default `true` for higher-quality quantitative analysis. Disable it for untrusted inputs or when OS isolation is unavailable.
 
 ### Step 3: LLM Generates Suggested Tasks
 
@@ -326,6 +327,7 @@ Check if `{SKILL_DIR}/.env` file exists.
 - `language`: Confirmed by user (zh / en)
 - `depth`: Confirmed by user (low / medium / high)
 - `enable_chart`: Confirmed by user (true / false)
+- `enable_generated_code`: Default `true` unless the user requested otherwise
 - `custom_collect_tasks`: Finalized list confirmed by user
 - `custom_analysis_tasks`: Finalized list confirmed by user
 
@@ -346,6 +348,7 @@ language: zh
 depth: medium
 output_dir: "./outputs"
 enable_chart: false
+enable_generated_code: true
 use_collect_data_cache: true
 use_analysis_cache: true
 use_report_outline_cache: true
@@ -469,10 +472,11 @@ Then proceed to the research pipeline.
 
 ### Step 1: Launch in Background
 
-Set `{GENERATED_CODE_FLAG}` to an empty string for the safe default. Set it to
-`--allow-generated-code` only when the user explicitly approved generated
-Python, the process runs in an OS-isolated environment, and `enable_chart` is
-`true`.
+Generated Python is enabled by default to preserve analysis quality. Run the
+pipeline in an OS-isolated environment because the bundled executor is not a
+security boundary. Set `{GENERATED_CODE_FLAG}` to an empty string for the
+default, or to `--no-generated-code` when inputs are untrusted or generated
+code must be disabled.
 
 ```powershell
 python {SKILL_DIR}/scripts/run.py --config {SKILL_DIR}/config_{CONFIG_ID}.yaml {GENERATED_CODE_FLAG} 2>&1
@@ -618,7 +622,10 @@ custom_analysis_tasks:
   - "Evaluate profitability metrics (ROE, margins)"
 
 # === Charts ===
-enable_chart: false              # Requires --allow-generated-code in OS isolation
+enable_chart: false              # Opt in separately; requires generated code
+
+# === Generated Python analysis ===
+enable_generated_code: true      # Default; set false for untrusted inputs
 
 # === Cache/Resume ===
 use_collect_data_cache: true
@@ -660,8 +667,8 @@ llm_config_list:
 | `--embedding-model MODEL` | Override embedding model | From env |
 | `--max-concurrent N` | Max concurrent agents | `3` |
 | `--depth low\|medium\|high` | Research depth: low=fast, medium=balanced, high=thorough | `medium` |
-| `--no-charts` | Disable chart generation when generated code is enabled | Charts disabled unless `--allow-generated-code` is set |
-| `--allow-generated-code` | Enable LLM-generated Python for trusted inputs only | Disabled |
+| `--no-charts` | Disable chart generation | Charts disabled |
+| `--no-generated-code` | Disable LLM-generated Python | Generated code enabled |
 | `--resume` | Resume from trusted local checkpoints only | Disabled |
 
 ### Typography
@@ -691,8 +698,8 @@ The **DataCollector** agent gathers data using registered tools:
 
 ### Phase 2: Data Analysis
 The **DataAnalyzer** agent analyzes the collected evidence in two modes:
-1. By default, it receives a bounded, relevance-ordered data context and writes a source-grounded report without executing generated code.
-2. With `--allow-generated-code`, it can run Python calculations against collected data and generate charts.
+1. By default, it generates and runs Python calculations against collected data for higher-quality quantitative analysis.
+2. With `--no-generated-code`, it falls back to a bounded, relevance-ordered data context and writes a source-grounded report without executing generated code.
 3. When charts are enabled, they use the centralized professional typography and palette settings.
 4. A configured VLM can review and critique chart quality.
 
@@ -726,10 +733,10 @@ Reports are saved to `output_dir/target_name/`:
 
 - **LLM cost**: Each report requires 50-100+ LLM calls. Use a cost-effective model like DeepSeek for production.
 - **akshare instability**: Chinese market APIs change frequently. Update akshare regularly: `pip install akshare --upgrade`
-- **Generated code**: Disabled by default. Data collection still works through structured JSON tool calls. `--allow-generated-code` is only appropriate for trusted inputs in an OS-isolated environment; the bundled executor is not a security boundary.
+- **Generated code**: Enabled by default for stronger quantitative analysis. Use trusted inputs and an OS-isolated environment because the bundled executor is not a security boundary. Pass `--no-generated-code` or set `enable_generated_code: false` to disable it; data collection still works through structured JSON tool calls.
 - **Checkpoint trust**: Resume is disabled by default because legacy checkpoints use Python serialization. Only use `--resume` for checkpoints created locally in a trusted output directory.
 - **pandoc required for DOCX**: Without pandoc, only Markdown output is available.
-- **VLM optional**: In an approved generated-code run, chart critique is skipped if VLM is not configured; charts can still generate without quality review.
+- **VLM optional**: In a chart-enabled run, chart critique is skipped if VLM is not configured; charts can still generate without quality review.
 - **Report quality depends on LLM**: Best results with top-tier models (GPT-4o, DeepSeek-V3, Claude).
 
 ## Advanced
