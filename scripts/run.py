@@ -121,8 +121,20 @@ Examples:
     p.add_argument("--max-concurrent", type=int, default=3,
                    help="Max concurrent agents (default: 3, 0=unlimited)")
     p.add_argument("--no-charts", action="store_true", help="Disable chart generation")
-    p.add_argument("--allow-generated-code", action="store_true",
-                   help="Allow LLM-generated Python. Only use with trusted inputs in an isolated environment.")
+    generated_code_group = p.add_mutually_exclusive_group()
+    generated_code_group.add_argument(
+        "--allow-generated-code",
+        dest="enable_generated_code",
+        action="store_true",
+        help="Enable LLM-generated Python (default; retained for backward compatibility).",
+    )
+    generated_code_group.add_argument(
+        "--no-generated-code",
+        dest="enable_generated_code",
+        action="store_false",
+        help="Disable LLM-generated Python.",
+    )
+    p.set_defaults(enable_generated_code=None)
     p.add_argument("--resume", action="store_true",
                    help="Resume from trusted local checkpoints. Never use checkpoints from untrusted directories.")
     p.add_argument("--no-resume", action="store_true", help=argparse.SUPPRESS)
@@ -188,7 +200,7 @@ def build_config(args: argparse.Namespace) -> dict:
         "custom_collect_tasks": [],
         "custom_analysis_tasks": [],
         "enable_chart": False,
-        "enable_generated_code": False,
+        "enable_generated_code": True,
         "save_note": None,
         "rate_limits": {
             "search_engines": 1.0,
@@ -235,8 +247,8 @@ def build_config(args: argparse.Namespace) -> dict:
         config["output_dir"] = args.output_dir
     if args.no_charts:
         config["enable_chart"] = False
-    # A config file must not be able to enable in-process code execution.
-    config["enable_generated_code"] = bool(args.allow_generated_code)
+    if args.enable_generated_code is not None:
+        config["enable_generated_code"] = args.enable_generated_code
     config["allow_unsafe_resume"] = args.resume and not args.no_resume
     if not config.get("market"):
         config["market"] = infer_market(config.get("stock_code"))
@@ -297,7 +309,7 @@ async def run_pipeline(config_dict: dict, args: argparse.Namespace) -> None:
     use_llm_name = config_dict["llm_config_list"][0]["model_name"]
     use_vlm_name = args.vlm_model or os.getenv("VLM_MODEL_NAME")
     use_embedding_name = args.embedding_model or os.getenv("EMBEDDING_MODEL_NAME")
-    enable_generated_code = config_dict.get("enable_generated_code", False)
+    enable_generated_code = config_dict.get("enable_generated_code", True)
     enable_chart = config_dict.get("enable_chart", False) and enable_generated_code
 
     # Initialize config
@@ -334,7 +346,7 @@ async def run_pipeline(config_dict: dict, args: argparse.Namespace) -> None:
     log_dir = os.path.join(config.working_dir, "logs")
     logger = setup_logger(log_dir=log_dir, log_level=logging.INFO)
     if config_dict.get("enable_chart", False) and not enable_generated_code:
-        logger.info("Chart generation disabled because generated code is not explicitly enabled")
+        logger.info("Chart generation disabled because generated code is disabled")
 
     if resume:
         memory.load()

@@ -7,6 +7,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -48,7 +49,7 @@ class ConfigSecurityTests(unittest.TestCase):
             "depth": "medium",
             "max_concurrent": 3,
             "no_charts": False,
-            "allow_generated_code": False,
+            "enable_generated_code": None,
             "resume": False,
             "no_resume": False,
         }
@@ -106,14 +107,39 @@ class ConfigSecurityTests(unittest.TestCase):
         config = run.build_config(self.build_args(stock_code="00020", market="US"))
         self.assertEqual(config["market"], "US")
 
-    def test_config_file_cannot_enable_generated_code(self):
+    def test_generated_code_is_enabled_by_default(self):
+        config = run.build_config(self.build_args())
+        self.assertTrue(config["enable_generated_code"])
+
+    def test_generated_code_cli_switches_are_backward_compatible(self):
+        with mock.patch.object(sys, "argv", ["run.py"]):
+            self.assertIsNone(run.parse_args().enable_generated_code)
+        with mock.patch.object(sys, "argv", ["run.py", "--no-generated-code"]):
+            self.assertFalse(run.parse_args().enable_generated_code)
+        with mock.patch.object(sys, "argv", ["run.py", "--allow-generated-code"]):
+            self.assertTrue(run.parse_args().enable_generated_code)
+
+    def test_config_file_can_disable_generated_code(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config.yaml"
-            config_path.write_text("enable_generated_code: true\n", encoding="utf-8")
+            config_path.write_text("enable_generated_code: false\n", encoding="utf-8")
             config = run.build_config(self.build_args(config=str(config_path)))
             self.assertFalse(config["enable_generated_code"])
-            config = run.build_config(self.build_args(config=str(config_path), allow_generated_code=True))
+
+    def test_cli_generated_code_setting_overrides_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.yaml"
+            config_path.write_text("enable_generated_code: false\n", encoding="utf-8")
+            config = run.build_config(
+                self.build_args(config=str(config_path), enable_generated_code=True)
+            )
             self.assertTrue(config["enable_generated_code"])
+
+            config_path.write_text("enable_generated_code: true\n", encoding="utf-8")
+            config = run.build_config(
+                self.build_args(config=str(config_path), enable_generated_code=False)
+            )
+            self.assertFalse(config["enable_generated_code"])
 
     def test_charts_are_disabled_by_default(self):
         config = run.build_config(self.build_args())
